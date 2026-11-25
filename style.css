@@ -60,3 +60,8 @@ a.lnk{color:var(--ac);text-decoration:none;font-size:14px}
 .toast.on{opacity:1}
 :focus-visible{outline:2px solid var(--ac);outline-offset:2px}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
+
+.wa{width:34px;height:34px;border-radius:50%;background:#12351f;color:#30d158;display:grid;place-items:center;flex:none}
+.wa svg{width:18px;height:18px;fill:currentColor}
+.chip{display:inline-block;text-decoration:none}
+.wal{background:#12351f;color:#5ee38a}

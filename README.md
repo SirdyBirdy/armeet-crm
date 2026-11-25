@@ -66,6 +66,15 @@ Repeat step 4 on each device. The token is stored in that browser only.
 
 Thresholds are in **Settings**.
 
+## WhatsApp
+
+- Each person has a **WhatsApp number**. If it is empty, a phone number in the contact field is used.
+- 10-digit numbers get the default country code (91). Change it in **Settings**.
+- Rows in the lists show a green WhatsApp button. It opens a chat with a message chosen from the person's status: reply for new inquiries, form reminder when the form is pending, follow-up for other inquiries, check-in for clients.
+- In a person's sheet, **Message on WhatsApp** lists every template for that person. Tap one to open WhatsApp with the text filled in. You still press send.
+- Opening a message logs it, sets last contact to today, and moves a new inquiry to Replied. Send Form moves the status to Form sent.
+- Edit templates and set your intake form link in **Settings**. `{name}` becomes the first name and `{form}` becomes the form link.
+
 ## Sync behavior
 
 - Changes save automatically about a second after you stop editing.
