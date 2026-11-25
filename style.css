@@ -70,3 +70,18 @@ a.lnk{color:var(--ac);text-decoration:none;font-size:14px}
 .kr{display:flex;gap:14px;align-items:center;padding:10px 14px;border-bottom:1px solid var(--line);font-size:14.5px}
 .kr:last-child{border-bottom:0}
 kbd{flex:none;min-width:96px;font:600 12px ui-monospace,SFMono-Regular,Menlo,monospace;background:var(--s3);border-radius:6px;padding:4px 8px;white-space:pre}
+
+.card{background:var(--s1);border-radius:14px;padding:14px}
+.hb{margin-bottom:12px}.hb:last-child{margin-bottom:0}
+.hl{display:flex;justify-content:space-between;font-size:14px;margin-bottom:5px}
+.hl small{color:var(--t2);font-weight:400}
+.ht{height:8px;background:var(--s2);border-radius:4px;overflow:hidden}
+.ht i{display:block;height:100%;background:var(--ac);border-radius:4px}
+.vb{display:flex;align-items:flex-end;gap:10px;height:150px}
+.vb>div{flex:1;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;gap:5px;font-size:12px;color:var(--t2)}
+.vb b{color:var(--tx);font-weight:600}
+.vb i{width:100%;max-width:38px;background:var(--ac);border-radius:6px 6px 2px 2px}
+.stat{cursor:default}
+.lock{position:fixed;inset:0;background:#000;z-index:50;display:grid;place-items:center;padding:24px}
+.lock>div{width:100%;max-width:320px;display:grid;gap:12px;text-align:center}
+.lock h3{margin:0;font-size:24px}

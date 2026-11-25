@@ -66,6 +66,29 @@ Repeat step 4 on each device. The token is stored in that browser only.
 
 Thresholds are in **Settings**.
 
+## Insights
+
+The **Insights** tab (key `M`) shows median first reply time, inquiry to client rate, sessions per month, the inquiry funnel, inquiries by source, active clients by days since last session, and why inquiries dropped.
+
+- Sessions come from the dates logged on each client. Sessions logged before this version count only as the last session.
+- Reply time, funnel stages and drop reasons are recorded from now on. Older inquiries only count at their current stage.
+- Set a reason on an inquiry before dropping it to feed the drop chart.
+
+## Rhythm and waiting on
+
+- **Rhythm** on a client (weekly, fortnightly, monthly) replaces the global threshold. A client is flagged at the rhythm plus half again: 11 days for weekly, 21 for fortnightly, 45 for monthly. Default uses the number in Settings.
+- **Waiting on** puts someone under "Needs follow-up" (me) or "Waiting on them". Contacting someone sets it to Them. New inquiries start as Me. Session done and Became client clear it.
+
+## Encryption
+
+Set a passphrase in **Settings** to encrypt `data.json` in your repo and the copy cached in the browser (AES-GCM, key derived with PBKDF2).
+
+- The app asks for the passphrase once per browser session.
+- The passphrase cannot be recovered. Without it the data cannot be read. Keep a backup of it somewhere safe.
+- Export backup is **not** encrypted.
+- Clear the field and save to turn encryption off.
+- Requires https (GitHub Pages) or localhost. It will not work from a `file://` page.
+
 ## Keyboard shortcuts
 
 Press `?` in the app to see this list.
@@ -73,7 +96,7 @@ Press `?` in the app to see this list.
 | Key | Action |
 |---|---|
 | `N` | New person |
-| `T` `I` `C` or `1` `2` `3` | Today, Inquiries, Clients |
+| `T` `I` `C` `M` or `1` to `4` | Today, Inquiries, Clients, Insights |
 | `/` | Search |
 | `J` `K` or arrow keys | Move selection down and up |
 | `Enter` | Open selected person |
