@@ -66,6 +66,24 @@ Repeat step 4 on each device. The token is stored in that browser only.
 
 Thresholds are in **Settings**.
 
+## Keyboard shortcuts
+
+Press `?` in the app to see this list.
+
+| Key | Action |
+|---|---|
+| `N` | New person |
+| `T` `I` `C` or `1` `2` `3` | Today, Inquiries, Clients |
+| `/` | Search |
+| `J` `K` or arrow keys | Move selection down and up |
+| `Enter` | Open selected person |
+| `W` | WhatsApp the selected person |
+| `,` | Settings |
+| `Esc` | Close the open sheet. Edits to a person are saved |
+| `Ctrl` or `Cmd` + `Enter` | Save and close |
+
+Inside a person: `D` contacted today, `S` session done, `W` WhatsApp with the default template. Shortcuts are ignored while typing in a field.
+
 ## WhatsApp
 
 - Each person has a **WhatsApp number**. If it is empty, a phone number in the contact field is used.

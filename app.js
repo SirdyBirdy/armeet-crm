@@ -24,6 +24,7 @@ const DEFAULTS={clientGapDays:21,inquiryGapDays:2,followUpChips:[1,3,7,14],count
 
 let db={people:[],settings:{...DEFAULTS}};
 let cfg=JSON.parse(localStorage.getItem('desk_cfg')||'{}'); // {token,repo:"owner/name",path}
+let onDismiss=()=>{},selId=null;
 let sha=null,tab='today',query='',saveT=null,dirty=false;
 
 /* ---------- storage / sync ---------- */
@@ -136,12 +137,12 @@ function render(){
     });
     if(!ps.length)h+=`<div class="list"><div class="empty">${q?'No matches.':'Nothing here yet. Tap + to add someone.'}</div></div>`;
   }
-  $('#main').innerHTML=h;
+  $('#main').innerHTML=h;markSel();
   const qi=$('#q');if(qi){qi.oninput=e=>{query=e.target.value;const pos=e.target.selectionStart;render();const n=$('#q');n.focus();n.setSelectionRange(pos,pos)}}
 }
 
 /* ---------- sheet ---------- */
-function openSheet(html){$('#sheet').innerHTML='<div class="grab"></div>'+html;$('#scrim').classList.add('on');requestAnimationFrame(()=>$('#sheet').classList.add('on'))}
+function openSheet(html){onDismiss=closeSheet;$('#sheet').dataset.pid='';$('#sheet').innerHTML='<div class="grab"></div>'+html;$('#scrim').classList.add('on');requestAnimationFrame(()=>$('#sheet').classList.add('on'))}
 function closeSheet(){$('#sheet').classList.remove('on');$('#scrim').classList.remove('on')}
 function toast(t){const e=$('#toast');e.textContent=t;e.classList.add('on');clearTimeout(toast.t);toast.t=setTimeout(()=>e.classList.remove('on'),1800)}
 const opts=o=>Object.entries(o).map(([k,v])=>`<option value="${k}">${v}</option>`).join('');
@@ -192,6 +193,8 @@ function personSheet(id){
   const commit=(msg)=>{touch(p);queueSave();render();if(msg)toast(msg)};
   const save=()=>{p.name=$('#en').value.trim()||p.name;p.contact=$('#ec').value.trim();p.whatsapp=$('#ew').value.trim();p.notes=$('#nt').value;p.status=$('#st').value;p.followUp=$('#fu').value;if($('#ls'))p.lastSession=$('#ls').value;touch(p);queueSave();render()};
   $('#x').onclick=()=>{save();closeSheet()};
+  onDismiss=()=>{save();closeSheet()};
+  $('#sheet').dataset.pid=id;
   $('#sheet').querySelectorAll('[data-a]').forEach(b=>b.onclick=()=>{
     const k=b.dataset.a;
     if(k==='contacted'){p.lastContact=t;if(p.status==='new')p.status='replied';addLog(p,'Contacted');if(p.followUp&&p.followUp<=t)p.followUp=''}
@@ -215,7 +218,7 @@ function settingsSheet(){
   <div class="g2"><div><label>Default country code</label><input id="cc" inputmode="numeric" value="${esc(S.countryCode)}"></div><div><label>Intake form link</label><input id="fl" value="${esc(S.formLink)}" autocapitalize="off" placeholder="https://"></div></div>
   <label>WhatsApp templates. Use {name} for first name and {form} for the form link.</label>
   ${S.templates.map((t,i)=>`<div class="why" style="margin:10px 4px 4px">${esc(t.label)}</div><textarea data-ti="${i}">${esc(t.text)}</textarea>`).join('')}
-  <div class="btns"><button class="b" id="ex">Export backup</button><button class="b" id="im">Import backup</button></div>
+  <div class="btns"><button class="b" id="ex">Export backup</button><button class="b" id="im">Import backup</button><button class="b" id="kb">Shortcuts</button></div>
   <div class="why" style="margin-top:12px">Token stays in this browser only. Data is saved as one JSON file in your private repo.</div>`);
   $('#x').onclick=closeSheet;
   $('#ok').onclick=async()=>{
@@ -224,16 +227,54 @@ function settingsSheet(){
     db.settings.clientGapDays=+$('#cg').value||21;db.settings.inquiryGapDays=+$('#ig').value||2;db.settings.countryCode=$('#cc').value.replace(/\D/g,'')||'91';db.settings.formLink=$('#fl').value.trim();document.querySelectorAll('[data-ti]').forEach(x=>{db.settings.templates[+x.dataset.ti].text=x.value});
     closeSheet();await pull();queueSave();render();
   };
+  $('#kb').onclick=helpSheet;
   $('#ex').onclick=()=>{const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(db,null,1)],{type:'application/json'}));a.download='desk-backup-'+todayStr()+'.json';a.click()};
   $('#im').onclick=()=>{const f=document.createElement('input');f.type='file';f.accept='.json';f.onchange=async()=>{try{db=normalize(JSON.parse(await f.files[0].text()));queueSave();closeSheet();render();toast('Imported')}catch(e){toast('Invalid file')}};f.click()};
 }
+
+/* ---------- keyboard ---------- */
+const typing=e=>/^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName)||e.target.isContentEditable;
+const sheetOn=()=>$('#sheet').classList.contains('on');
+function markSel(){document.querySelectorAll('.row.sel').forEach(r=>r.classList.remove('sel'));const r=selId&&document.querySelector(`#main .row[data-id="${selId}"]`);if(r)r.classList.add('sel')}
+function moveSel(d){const rows=[...document.querySelectorAll('#main .row')];if(!rows.length)return;let i=rows.findIndex(r=>r.dataset.id===selId);i=i<0?(d>0?0:rows.length-1):Math.min(rows.length-1,Math.max(0,i+d));selId=rows[i].dataset.id;markSel();rows[i].scrollIntoView({block:'nearest'})}
+function go(t){if(tab!==t){tab=t;selId=null;render()}}
+function helpSheet(){
+  const R=[['N','New person'],['T  I  C','Today, Inquiries, Clients (or 1 2 3)'],['/','Search'],['J  K','Move down and up (or arrow keys)'],['Enter','Open selected person'],['W','WhatsApp selected person'],[',','Settings'],['?','This list'],['Esc','Close, saves edits'],['Ctrl or Cmd Enter','Save and close'],['D','In a person: contacted today'],['S','In a person: session done'],['W','In a person: WhatsApp']];
+  openSheet(`<div class="sh-h"><span style="width:44px"></span><h3>Shortcuts</h3><button class="txt" id="x">Done</button></div><div class="list" style="margin-top:12px">${R.map(([k,t])=>`<div class="kr"><kbd>${k}</kbd><span>${t}</span></div>`).join('')}</div>`);
+  $('#x').onclick=closeSheet;
+}
+document.addEventListener('keydown',e=>{
+  const s=$('#sheet');
+  if(e.key==='Escape'){if(sheetOn()){e.preventDefault();onDismiss()}else if(document.activeElement&&document.activeElement.id==='q')document.activeElement.blur();return}
+  if((e.ctrlKey||e.metaKey)&&e.key==='Enter'&&sheetOn()){const b=s.querySelector('#save')||s.querySelector('#ok')||s.querySelector('#x');if(b){e.preventDefault();b.click()}return}
+  if(e.key==='Enter'&&sheetOn()&&['n','c','w'].includes(e.target.id)&&s.querySelector('#save')){e.preventDefault();s.querySelector('#save').click();return}
+  if(e.ctrlKey||e.metaKey||e.altKey||typing(e))return;
+  const k=e.key.toLowerCase();
+  if(sheetOn()){
+    if(k==='d'){const b=s.querySelector('[data-a=contacted]');if(b){e.preventDefault();b.click()}}
+    else if(k==='s'){const b=s.querySelector('[data-a=session]');if(b){e.preventDefault();b.click()}}
+    else if(k==='w'){const p=db.people.find(x=>x.id===s.dataset.pid);if(p){const t=defaultTpl(p),a=s.querySelector(`.wal[data-tid="${t.id}"]`)||s.querySelector('.wal');if(a){e.preventDefault();a.click()}}}
+    return;
+  }
+  if(k==='n'){e.preventDefault();addSheet()}
+  else if(k==='t'||k==='1')go('today');
+  else if(k==='i'||k==='2')go('inquiry');
+  else if(k==='c'||k==='3')go('client');
+  else if(k==='/'){e.preventDefault();if(tab==='today')go('inquiry');const q=$('#q');if(q){q.focus();q.select()}}
+  else if(k==='j'||k==='arrowdown'){e.preventDefault();moveSel(1)}
+  else if(k==='k'||k==='arrowup'){e.preventDefault();moveSel(-1)}
+  else if(k==='enter'){if(selId&&e.target===document.body)personSheet(selId)}
+  else if(k==='w'){const a=document.querySelector('#main .row.sel .wa');if(a){e.preventDefault();a.click()}}
+  else if(k===','){e.preventDefault();settingsSheet()}
+  else if(k==='?'){e.preventDefault();helpSheet()}
+});
 
 /* ---------- events ---------- */
 $('#seg').onclick=e=>{const b=e.target.closest('button');if(b){tab=b.dataset.t;render()}};
 $('#main').onclick=e=>{const w=e.target.closest('.wa');if(w){const id=w.dataset.wa,tid=w.dataset.tid;setTimeout(()=>logWA(id,tid),50);return}const r=e.target.closest('.row'),s=e.target.closest('[data-go]');if(r)personSheet(r.dataset.id);else if(s){tab=s.dataset.go;render()}};
 $('#main').onkeydown=e=>{if(e.key==='Enter'&&e.target.classList.contains('row'))personSheet(e.target.dataset.id)};
 $('#fab').onclick=addSheet;
-$('#scrim').onclick=()=>{closeSheet()};
+$('#scrim').onclick=()=>onDismiss();
 $('#sync').onclick=settingsSheet;
 document.addEventListener('visibilitychange',async()=>{if(!document.hidden&&cfg.token&&!dirty){await pull();render()}});
 addEventListener('beforeunload',e=>{if(dirty&&cfg.token){e.preventDefault();e.returnValue=''}});
