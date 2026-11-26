@@ -135,7 +135,7 @@ Everything is in `app.js`. Common edits:
 
 - Inquiry statuses: `INQ_STATUS`
 - Client statuses: `CL_STATUS`
-- Sources: `SOURCES`
+- Sources: Settings (comma separated list), defaults in `DEFAULTS.sources`
 - Default thresholds and follow-up chips: `DEFAULTS`
 - Colors: CSS variables at the top of `style.css`
 

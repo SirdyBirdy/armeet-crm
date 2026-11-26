@@ -10,8 +10,7 @@ const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&
 
 const INQ_STATUS={new:'New, no reply yet',replied:'Replied',form_sent:'Form sent',form_filled:'Form filled',call_booked:'Call booked',converted:'Became client',dropped:'Dropped'};
 const CL_STATUS={active:'Active',paused:'Paused',ended:'Ended'};
-const SOURCES=['WhatsApp','Instagram','Email','Call','Website','Referral','Other'];
-const DEFAULTS={clientGapDays:21,inquiryGapDays:2,followUpChips:[1,3,7,14],countryCode:'91',formLink:'',templates:[
+const DEFAULTS={clientGapDays:21,inquiryGapDays:2,followUpChips:[1,3,7,14],countryCode:'91',formLink:'',sources:['WhatsApp','Instagram','Email','Call','Website','Referral','Mindworks','Namaste Psychology','ChatGPT / AI','Other'],templates:[
 {id:'reply',label:'Reply to inquiry',for:'inquiry',text:"Hi {name}, thanks for reaching out to Namaste Psychology. I'd be happy to help. Could you tell me a little about what you're looking for, and when you're usually free for a short call?"},
 {id:'formsend',label:'Send form',for:'inquiry',text:"Hi {name}, please fill in this short form so I can understand your needs before we speak: {form}"},
 {id:'formremind',label:'Form reminder',for:'inquiry',text:"Hi {name}, a gentle reminder to fill in the intake form when you get a moment: {form}. Let me know if you have any questions."},
@@ -130,7 +129,7 @@ function insightsHTML(){
   const mx=Math.max(1,...mc.map(x=>x[1]));
   const FL=['Inquiries','Replied','Form sent','Form filled','Call booked','Became client'];
   const fc=FL.map((l,i)=>[l,st.filter(x=>x>=i).length]);
-  const src=SOURCES.map(s=>[s,inq.filter(p=>p.source===s).length,inq.filter(p=>p.source===s&&stageOf(p)===5).length]).filter(x=>x[1]);
+  const src=[...new Set([...db.settings.sources,...inq.map(p=>p.source).filter(Boolean)])].map(s=>[s,inq.filter(p=>p.source===s).length,inq.filter(p=>p.source===s&&stageOf(p)===5).length]).filter(x=>x[1]);
   const act=P.filter(isActiveCl),B=[['0 to 7 days',0,7],['8 to 14',8,14],['15 to 21',15,21],['22 to 30',22,30],['31 or more',31,9999]];
   const bc=B.map(([l,a,b])=>[l,act.filter(p=>{const r=p.lastSession||p.lastContact;if(!r)return false;const n=diff(t,r);return n>=a&&n<=b}).length]);
   const dr={};inq.filter(p=>p.status==='dropped'&&p.dropReason).forEach(p=>dr[p.dropReason]=(dr[p.dropReason]||0)+1);
@@ -195,7 +194,7 @@ function addSheet(){
   openSheet(`<div class="sh-h"><button class="txt" onclick="closeSheet()">Cancel</button><h3>New</h3><button class="txt" id="save"><b>Add</b></button></div>
   <div class="seg" id="tp" style="margin:10px 0 0"><button data-v="inquiry" class="on">Inquiry</button><button data-v="client">Client</button></div>
   <label>Name</label><input id="n" autocomplete="off" placeholder="Full name">
-  <div class="g2"><div><label>WhatsApp number</label><input id="w" inputmode="tel" autocomplete="off" placeholder="98765 43210"></div><div><label>Source</label><select id="s">${SOURCES.map(s=>`<option>${s}</option>`).join('')}</select></div></div>
+  <div class="g2"><div><label>WhatsApp number</label><input id="w" inputmode="tel" autocomplete="off" placeholder="98765 43210"></div><div><label>Source</label><select id="s">${db.settings.sources.map(s=>`<option>${esc(s)}</option>`).join('')}</select></div></div>
   <label>Email or other contact</label><input id="c" autocomplete="off">
   <label>Note</label><textarea id="no" placeholder="What did they ask for?"></textarea>`);
   let type='inquiry';
@@ -227,16 +226,16 @@ function personSheet(id){
   <div class="chips">${db.settings.followUpChips.map(n=>`<button class="chip ${p.followUp===addDays(t,n)?'on':''}" data-fu="${n}">${n===1?'Tomorrow':n+' days'}</button>`).join('')}<button class="chip ${p.followUp?'':'on'}" data-fu="0">None</button></div>
   <div class="g2"><div><label>Date</label><input type="date" id="fu" value="${p.followUp||''}"></div><div><label>Status</label><select id="st">${opts(inq?INQ_STATUS:CL_STATUS)}</select></div></div>
   <div class="g2"><div><label>Name</label><input id="en" value="${esc(p.name)}"></div><div><label>WhatsApp number</label><input id="ew" inputmode="tel" value="${esc(p.whatsapp||'')}"></div></div>
-  <label>Email or other contact</label><input id="ec" value="${esc(p.contact)}">
+  <div class="g2"><div><label>Email or other contact</label><input id="ec" value="${esc(p.contact)}"></div><div><label>Source</label><select id="so">${[...new Set([...db.settings.sources,p.source].filter(Boolean))].map(x=>`<option>${esc(x)}</option>`).join('')}</select></div></div>
   <div class="g2"><div><label>Waiting on</label><select id="wt"><option value="">Nobody</option><option value="me">Me</option><option value="them">Them</option></select></div>${inq?`<div><label>If dropped, why</label><select id="dr">${['','No reply from them','Form not filled','Price','Timing','Chose someone else','Not a fit','Other'].map(x=>`<option>${x}</option>`).join('')}</select></div>`:`<div><label>Rhythm</label><select id="rh">${[[0,'Default'],[7,'Weekly'],[14,'Fortnightly'],[30,'Monthly']].map(([v,l])=>`<option value="${v}">${l}</option>`).join('')}</select></div>`}</div>
   ${inq?'':`<label>Sessions (${sess(p).length})</label><div class="g2" style="grid-template-columns:1fr auto"><input type="date" id="ls" value="${t}"><button class="b" id="sa">Add session</button></div><div class="chips" style="margin-top:8px">${sess(p).slice(-8).reverse().map(d=>`<button class="chip" data-sd="${d}">${fmt(d)} ×</button>`).join('')}</div>`}
   <label>Notes</label><textarea id="nt">${esc(p.notes)}</textarea>
   <label>Log</label><div class="g2" style="grid-template-columns:1fr auto"><input id="lg" placeholder="Add an entry" autocomplete="off"><button class="b" id="la">Add</button></div>
   <div class="log">${(p.log||[]).map(l=>`<div>${esc(l.t)}<small>${fmt(l.d)}</small></div>`).join('')}</div>
   <div style="text-align:center;margin-top:18px"><button class="txt dn" id="del">Delete</button></div>`);
-  $('#st').value=p.status;$('#wt').value=p.waiting||'';if($('#dr'))$('#dr').value=p.dropReason||'';if($('#rh'))$('#rh').value=p.cadence||0;
+  $('#st').value=p.status;$('#so').value=p.source||'';$('#wt').value=p.waiting||'';if($('#dr'))$('#dr').value=p.dropReason||'';if($('#rh'))$('#rh').value=p.cadence||0;
   const commit=(msg)=>{touch(p);queueSave();render();if(msg)toast(msg)};
-  const save=()=>{p.name=$('#en').value.trim()||p.name;p.contact=$('#ec').value.trim();p.whatsapp=$('#ew').value.trim();p.notes=$('#nt').value;p.status=$('#st').value;p.followUp=$('#fu').value;p.waiting=$('#wt').value;if($('#dr'))p.dropReason=$('#dr').value;if($('#rh'))p.cadence=+$('#rh').value;touch(p);queueSave();render()};
+  const save=()=>{p.name=$('#en').value.trim()||p.name;p.contact=$('#ec').value.trim();p.source=$('#so').value;p.whatsapp=$('#ew').value.trim();p.notes=$('#nt').value;p.status=$('#st').value;p.followUp=$('#fu').value;p.waiting=$('#wt').value;if($('#dr'))p.dropReason=$('#dr').value;if($('#rh'))p.cadence=+$('#rh').value;touch(p);queueSave();render()};
   $('#x').onclick=()=>{save();closeSheet()};
   onDismiss=()=>{save();closeSheet()};
   $('#sheet').dataset.pid=id;
@@ -263,6 +262,7 @@ function settingsSheet(){
   <label>GitHub token (fine-grained, Contents read and write, that repo only)</label><input id="tk" type="password" placeholder="github_pat_..." value="${esc(cfg.token||'')}" autocomplete="off">
   <div class="g2"><div><label>Flag clients after (days)</label><input id="cg" type="number" min="1" value="${S.clientGapDays}"></div><div><label>Flag inquiries after (days)</label><input id="ig" type="number" min="1" value="${S.inquiryGapDays}"></div></div>
   <div class="g2"><div><label>Default country code</label><input id="cc" inputmode="numeric" value="${esc(S.countryCode)}"></div><div><label>Intake form link</label><input id="fl" value="${esc(S.formLink)}" autocapitalize="off" placeholder="https://"></div></div>
+  <label>Sources, separated by commas</label><input id="sr" value="${esc(S.sources.join(', '))}">
   <label>WhatsApp templates. Use {name} for first name and {form} for the form link.</label>
   ${S.templates.map((t,i)=>`<div class="why" style="margin:10px 4px 4px">${esc(t.label)}</div><textarea data-ti="${i}">${esc(t.text)}</textarea>`).join('')}
   <label>Encryption passphrase. Leave empty for none. It cannot be recovered if forgotten.</label><input id="pp" type="password" autocomplete="new-password" value="${esc(pass)}">
@@ -273,7 +273,7 @@ function settingsSheet(){
     const np=$('#pp').value,changed=np!==pass;
     cfg={repo:$('#rp').value.trim(),path:$('#pa').value.trim()||'data.json',token:$('#tk').value.trim()};
     localStorage.setItem('desk_cfg',JSON.stringify(cfg));
-    db.settings.clientGapDays=+$('#cg').value||21;db.settings.inquiryGapDays=+$('#ig').value||2;db.settings.countryCode=$('#cc').value.replace(/\D/g,'')||'91';db.settings.formLink=$('#fl').value.trim();document.querySelectorAll('[data-ti]').forEach(x=>{db.settings.templates[+x.dataset.ti].text=x.value});
+    db.settings.clientGapDays=+$('#cg').value||21;db.settings.inquiryGapDays=+$('#ig').value||2;db.settings.countryCode=$('#cc').value.replace(/\D/g,'')||'91';db.settings.formLink=$('#fl').value.trim();db.settings.sources=$('#sr').value.split(',').map(x=>x.trim()).filter(Boolean);if(!db.settings.sources.length)db.settings.sources=[...DEFAULTS.sources];document.querySelectorAll('[data-ti]').forEach(x=>{db.settings.templates[+x.dataset.ti].text=x.value});
     if(changed){pass=np;keyC=null;np?sessionStorage.setItem('desk_pass',np):sessionStorage.removeItem('desk_pass');closeSheet();queueSave();render();toast(np?'Encryption on':'Encryption off');return}
     closeSheet();await pull();queueSave();render();
   };
