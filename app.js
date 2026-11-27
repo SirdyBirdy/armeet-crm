@@ -85,6 +85,7 @@ function attention(p){
   const S=db.settings;
   if(p.followUp&&p.followUp<=t){const n=diff(t,p.followUp);return{lvl:n>0?2:1,why:n>0?`Follow-up overdue by ${n}d`:'Follow-up today',n:n+100}}
   if(p.followUp)return null;
+  if(p.type==='inquiry'&&p.callAt&&p.status==='call_booked'&&p.callAt.slice(0,10)<t){const n=diff(t,p.callAt.slice(0,10));return{lvl:2,why:`Call was ${n}d ago, log the outcome`,n:n+30}}
   if(p.type==='inquiry'){
     if(p.status==='new'){const n=diff(t,(p.created||t).slice(0,10));return{lvl:n>=1?2:1,why:n>=1?`No reply sent for ${n}d`:'Needs a reply',n:n+50}}
     const n=diff(t,p.lastContact||(p.created||t).slice(0,10));
@@ -104,6 +105,13 @@ const initials=n=>n.trim().split(/\s+/).slice(0,2).map(w=>w[0]).join('').toUpper
 function touch(p){const n=new Date().toISOString();p.updatedAt=Date.now();if(p.type==='inquiry'){p.reached=p.reached||[];if(!p.reached.includes(p.status))p.reached.push(p.status);if(!['new','dropped'].includes(p.status)&&!p.firstReplyAt)p.firstReplyAt=n}else if(!p.convertedAt&&p.origin==='inquiry')p.convertedAt=n}
 const sess=p=>p.sessions&&p.sessions.length?p.sessions:(p.lastSession?[p.lastSession]:[]);
 function addSession(p,d){const a=sess(p).slice();if(!a.includes(d))a.push(d);a.sort();p.sessions=a;p.lastSession=a[a.length-1];if(!p.lastContact||p.lastContact<d)p.lastContact=d}
+const fmtDT=s=>new Date(s).toLocaleString('en-IN',{weekday:'short',day:'numeric',month:'short',hour:'numeric',minute:'2-digit'});
+const calLink=p=>{const a=new Date(p.callAt),b=new Date(+a+30*6e4),f=d=>d.getFullYear()+String(d.getMonth()+1).padStart(2,'0')+String(d.getDate()).padStart(2,'0')+'T'+String(d.getHours()).padStart(2,'0')+String(d.getMinutes()).padStart(2,'0')+'00';return 'https://calendar.google.com/calendar/render?action=TEMPLATE&text='+encodeURIComponent('Discovery call: '+p.name)+'&dates='+f(a)+'/'+f(b)};
+let undoData=null;
+function snap(){undoData=JSON.stringify(db.people)}
+function undoNow(){if(!undoData)return;db.people=JSON.parse(undoData);db.people.forEach(p=>p.updatedAt=Date.now());undoData=null;queueSave();closeSheet();render();$('#toast').classList.remove('on','act');toast('Undone')}
+function toastU(t){const e=$('#toast');e.innerHTML=esc(t)+' <button class="txt" id="ud">Undo</button>';e.classList.add('on','act');$('#ud').onclick=undoNow;clearTimeout(toast.t);toast.t=setTimeout(()=>e.classList.remove('on','act'),6000)}
+function snooze(id,n){const p=db.people.find(x=>x.id===id);if(!p)return;snap();p.followUp=addDays(todayStr(),n);touch(p);queueSave();render();toastU('Snoozed to '+fmt(p.followUp))}
 const IDX={new:0,replied:1,form_sent:2,form_filled:3,call_booked:4,converted:5};
 const stageOf=p=>{if(p.type==='client')return 5;let m=0;[p.status,...(p.reached||[])].forEach(x=>{if(IDX[x]>m)m=IDX[x]});return m};
 const WA_SVG='<svg viewBox="0 0 24 24"><path d="M17.47 14.38c-.3-.15-1.76-.87-2.03-.97-.27-.1-.47-.15-.67.15-.2.3-.77.97-.94 1.16-.17.2-.35.22-.64.07-.3-.15-1.26-.46-2.4-1.48-.89-.8-1.49-1.77-1.66-2.07-.17-.3-.02-.46.13-.61.14-.13.3-.35.45-.52.15-.18.2-.3.3-.5.1-.2.05-.38-.02-.53-.08-.15-.67-1.62-.92-2.2-.24-.59-.49-.51-.67-.51h-.57c-.2 0-.52.08-.8.38-.27.3-1.04 1.02-1.04 2.48s1.07 2.87 1.22 3.07c.15.2 2.1 3.2 5.08 4.48.71.3 1.26.49 1.7.63.71.23 1.36.2 1.87.12.57-.08 1.76-.72 2-1.41.25-.7.25-1.29.17-1.41-.07-.13-.27-.2-.57-.35M12.05 21.8a9.87 9.87 0 0 1-5.03-1.38l-.36-.21-3.74.98 1-3.65-.24-.37a9.86 9.86 0 0 1-1.51-5.26c0-5.45 4.44-9.88 9.89-9.88 2.64 0 5.12 1.03 6.99 2.9a9.83 9.83 0 0 1 2.89 6.99c0 5.45-4.44 9.88-9.89 9.88M20.46 3.49A11.82 11.82 0 0 0 12.05 0C5.5 0 .16 5.34.16 11.89c0 2.1.55 4.14 1.59 5.95L.06 24l6.3-1.65a11.88 11.88 0 0 0 5.69 1.45c6.55 0 11.89-5.34 11.89-11.89 0-3.18-1.24-6.17-3.48-8.41"/></svg>';
@@ -134,9 +142,13 @@ function insightsHTML(){
   const bc=B.map(([l,a,b])=>[l,act.filter(p=>{const r=p.lastSession||p.lastContact;if(!r)return false;const n=diff(t,r);return n>=a&&n<=b}).length]);
   const dr={};inq.filter(p=>p.status==='dropped'&&p.dropReason).forEach(p=>dr[p.dropReason]=(dr[p.dropReason]||0)+1);
   const card=(h,b)=>`<h2>${h}</h2><div class="card">${b}</div>`;
+  const ms=P.flatMap(p=>(p.missed||[]).map(m=>m.d)),from=addDays(t,-90),s90=all.filter(x=>x>=from).length,m90=ms.filter(x=>x>=from).length;
+  const mm=months.map(m=>[toD(m+'-01').toLocaleDateString('en-IN',{month:'short'}),ms.filter(x=>x.startsWith(m)).length]),mmx=Math.max(1,...mm.map(x=>x[1]));
+  const top=P.filter(p=>(p.missed||[]).length).sort((a,b)=>b.missed.length-a.missed.length).slice(0,3).map(p=>`${esc(p.name)} (${p.missed.length})`).join(', ');
+  const missedCard=ms.length?card('Cancellations and no-shows',`<div class="vb">${mm.map(([l,v])=>`<div><b>${v}</b><i style="height:${Math.max(v?4:0,Math.round(v/mmx*90))}px"></i><span>${l}</span></div>`).join('')}</div><div class="why" style="margin-top:12px">Last 90 days: ${s90+m90?Math.round(m90/(s90+m90)*100)+'%':'n/a'} of booked sessions missed. Most: ${top}</div>`):'';
   return `<div class="stats"><div class="stat"><b>${fh(rt)}</b><span>Median first reply</span></div><div class="stat"><b>${inq.length?Math.round(conv/inq.length*100):0}%</b><span>Inquiry to client</span></div><div class="stat"><b>${mc[5][1]}</b><span>Sessions this month</span></div></div>`
   +card('Sessions per month',`<div class="vb">${mc.map(([l,v])=>`<div><b>${v}</b><i style="height:${Math.max(v?4:0,Math.round(v/mx*90))}px"></i><span>${l}</span></div>`).join('')}</div>`)
-  +card('Inquiry funnel',fc.map(([l,v])=>hbar(l,v,fc[0][1],fc[0][1]?Math.round(v/fc[0][1]*100)+'%':'')).join(''))
+  +missedCard+card('Inquiry funnel',fc.map(([l,v])=>hbar(l,v,fc[0][1],fc[0][1]?Math.round(v/fc[0][1]*100)+'%':'')).join(''))
   +card('Inquiries by source',src.length?src.map(([s,n,w])=>hbar(s,n,Math.max(...src.map(x=>x[1])),w+' clients')).join(''):'<div class="why">No inquiries yet.</div>')
   +card('Active clients by days since last session',bc.map(([l,v])=>hbar(l,v,Math.max(1,...bc.map(x=>x[1])))).join(''))
   +card('Why inquiries dropped',Object.keys(dr).length?Object.entries(dr).sort((a,b)=>b[1]-a[1]).map(([l,v])=>hbar(l,v,Math.max(...Object.values(dr)))).join(''):'<div class="why">Set a reason on dropped inquiries and it shows here.</div>')
@@ -147,7 +159,7 @@ function insightsHTML(){
 function rowHTML(p,why,cls){
   const st=p.type==='inquiry'?INQ_STATUS[p.status]:CL_STATUS[p.status];
   const t=defaultTpl(p),l=waLink(p,t);
-  return `<div class="row" role="button" tabindex="0" data-id="${p.id}"><div class="av ${p.type==='inquiry'?'inq':''}">${esc(initials(p.name))}</div><div class="mid"><div class="nm">${esc(p.name)}</div><div class="why ${cls||''}">${esc(why)}</div></div>${why===st?'':`<span class="pill">${esc(st)}</span>`}${l?`<a class="wa" href="${l}" target="_blank" rel="noopener" data-wa="${p.id}" data-tid="${t.id}" aria-label="WhatsApp: ${esc(t.label)}" title="${esc(t.label)}">${WA_SVG}</a>`:''}</div>`;
+  return `<div class="row" role="button" tabindex="0" data-id="${p.id}"><div class="av ${p.type==='inquiry'?'inq':''}">${esc(initials(p.name))}</div><div class="mid"><div class="nm">${esc(p.name)}</div><div class="why ${cls||''}">${esc(why)}</div></div>${why===st?'':`<span class="pill">${esc(st)}</span>`}${cls?`<button class="sn" data-sn="${p.id}" title="Snooze 1 day">+1d</button>`:''}${l?`<a class="wa" href="${l}" target="_blank" rel="noopener" data-wa="${p.id}" data-tid="${t.id}" aria-label="WhatsApp: ${esc(t.label)}" title="${esc(t.label)}">${WA_SVG}</a>`:''}</div>`;
 }
 function render(){
   const t=todayStr(),S=db.settings;
@@ -161,6 +173,8 @@ function render(){
     const nForm=db.people.filter(p=>isOpenInq(p)&&p.status==='form_sent').length;
     const nLapsed=db.people.filter(p=>isActiveCl(p)&&!p.followUp&&attention(p)).length;
     h+=`<div class="stats"><button class="stat ${nNew?'hot':''}" data-go="inquiry"><b>${nNew}</b><span>Awaiting reply</span></button><button class="stat" data-go="inquiry"><b>${nForm}</b><span>Form pending</span></button><button class="stat" data-go="client"><b>${nLapsed}</b><span>Not booked in</span></button></div>`;
+    const calls=db.people.filter(p=>p.type==='inquiry'&&p.callAt&&p.status!=='dropped'&&p.callAt.slice(0,10)>=t&&p.callAt.slice(0,10)<=addDays(t,7)).sort((a,b)=>a.callAt.localeCompare(b.callAt));
+    if(calls.length)h+='<h2>Calls</h2><div class="list">'+calls.map(p=>rowHTML(p,fmtDT(p.callAt))).join('')+'</div>';
     const mine=att.filter(x=>x.p.waiting!=='them'),theirs=att.filter(x=>x.p.waiting==='them');
     const L=a=>`<div class="list">${a.map(x=>rowHTML(x.p,x.a.why,x.a.lvl===2?'red':'or')).join('')}</div>`;
     h+='<h2>Needs follow-up</h2>';
@@ -187,7 +201,7 @@ function render(){
 /* ---------- sheet ---------- */
 function openSheet(html){onDismiss=closeSheet;$('#sheet').dataset.pid='';$('#sheet').innerHTML='<div class="grab"></div>'+html;$('#scrim').classList.add('on');requestAnimationFrame(()=>$('#sheet').classList.add('on'))}
 function closeSheet(){$('#sheet').classList.remove('on');$('#scrim').classList.remove('on')}
-function toast(t){const e=$('#toast');e.textContent=t;e.classList.add('on');clearTimeout(toast.t);toast.t=setTimeout(()=>e.classList.remove('on'),1800)}
+function toast(t){const e=$('#toast');e.textContent=t;e.classList.remove('act');e.classList.add('on');clearTimeout(toast.t);toast.t=setTimeout(()=>e.classList.remove('on'),1800)}
 const opts=o=>Object.entries(o).map(([k,v])=>`<option value="${k}">${v}</option>`).join('');
 
 function addSheet(){
@@ -228,30 +242,33 @@ function personSheet(id){
   <div class="g2"><div><label>Name</label><input id="en" value="${esc(p.name)}"></div><div><label>WhatsApp number</label><input id="ew" inputmode="tel" value="${esc(p.whatsapp||'')}"></div></div>
   <div class="g2"><div><label>Email or other contact</label><input id="ec" value="${esc(p.contact)}"></div><div><label>Source</label><select id="so">${[...new Set([...db.settings.sources,p.source].filter(Boolean))].map(x=>`<option>${esc(x)}</option>`).join('')}</select></div></div>
   <div class="g2"><div><label>Waiting on</label><select id="wt"><option value="">Nobody</option><option value="me">Me</option><option value="them">Them</option></select></div>${inq?`<div><label>If dropped, why</label><select id="dr">${['','No reply from them','Form not filled','Price','Timing','Chose someone else','Not a fit','Other'].map(x=>`<option>${x}</option>`).join('')}</select></div>`:`<div><label>Rhythm</label><select id="rh">${[[0,'Default'],[7,'Weekly'],[14,'Fortnightly'],[30,'Monthly']].map(([v,l])=>`<option value="${v}">${l}</option>`).join('')}</select></div>`}</div>
-  ${inq?'':`<label>Sessions (${sess(p).length})</label><div class="g2" style="grid-template-columns:1fr auto"><input type="date" id="ls" value="${t}"><button class="b" id="sa">Add session</button></div><div class="chips" style="margin-top:8px">${sess(p).slice(-8).reverse().map(d=>`<button class="chip" data-sd="${d}">${fmt(d)} ×</button>`).join('')}</div>`}
+  ${inq?`<label>Discovery call</label><div class="g2" style="grid-template-columns:1fr auto"><input type="datetime-local" id="ca" value="${p.callAt||''}">${p.callAt?`<a class="b" style="text-decoration:none" target="_blank" rel="noopener" href="${calLink(p)}">Add to calendar</a>`:'<span></span>'}</div>`:`<label>Sessions (${sess(p).length})</label><div class="g2" style="grid-template-columns:1fr auto"><input type="date" id="ls" value="${t}"><button class="b" id="sa">Add session</button></div><div class="btns" style="margin:8px 0 0"><button class="b" id="mc">Cancelled</button><button class="b" id="mn">No-show</button></div><div class="chips" style="margin-top:8px">${sess(p).slice(-8).reverse().map(d=>`<button class="chip" data-sd="${d}">${fmt(d)} ×</button>`).join('')}${(p.missed||[]).slice(-6).reverse().map(m=>`<button class="chip miss" data-md="${m.d}|${m.k}">${m.k==='noshow'?'No-show':'Cancelled'} ${fmt(m.d)} ×</button>`).join('')}</div>`}
   <label>Notes</label><textarea id="nt">${esc(p.notes)}</textarea>
   <label>Log</label><div class="g2" style="grid-template-columns:1fr auto"><input id="lg" placeholder="Add an entry" autocomplete="off"><button class="b" id="la">Add</button></div>
   <div class="log">${(p.log||[]).map(l=>`<div>${esc(l.t)}<small>${fmt(l.d)}</small></div>`).join('')}</div>
   <div style="text-align:center;margin-top:18px"><button class="txt dn" id="del">Delete</button></div>`);
   $('#st').value=p.status;$('#so').value=p.source||'';$('#wt').value=p.waiting||'';if($('#dr'))$('#dr').value=p.dropReason||'';if($('#rh'))$('#rh').value=p.cadence||0;
   const commit=(msg)=>{touch(p);queueSave();render();if(msg)toast(msg)};
-  const save=()=>{p.name=$('#en').value.trim()||p.name;p.contact=$('#ec').value.trim();p.source=$('#so').value;p.whatsapp=$('#ew').value.trim();p.notes=$('#nt').value;p.status=$('#st').value;p.followUp=$('#fu').value;p.waiting=$('#wt').value;if($('#dr'))p.dropReason=$('#dr').value;if($('#rh'))p.cadence=+$('#rh').value;touch(p);queueSave();render()};
+  const save=()=>{p.name=$('#en').value.trim()||p.name;p.contact=$('#ec').value.trim();p.source=$('#so').value;p.whatsapp=$('#ew').value.trim();p.notes=$('#nt').value;p.status=$('#st').value;p.followUp=$('#fu').value;const ca=$('#ca');if(ca){const v=ca.value;if(v&&v!==p.callAt&&['new','replied','form_sent','form_filled'].includes(p.status))p.status='call_booked';p.callAt=v}p.waiting=$('#wt').value;if($('#dr'))p.dropReason=$('#dr').value;if($('#rh'))p.cadence=+$('#rh').value;touch(p);queueSave();render()};
   $('#x').onclick=()=>{save();closeSheet()};
   onDismiss=()=>{save();closeSheet()};
   $('#sheet').dataset.pid=id;
   $('#sheet').querySelectorAll('[data-a]').forEach(b=>b.onclick=()=>{
-    const k=b.dataset.a;
+    const k=b.dataset.a;snap();
     if(k==='contacted'){p.lastContact=t;if(p.status==='new')p.status='replied';p.waiting='them';addLog(p,'Contacted');if(p.followUp&&p.followUp<=t)p.followUp=''}
     if(k==='session'){addSession(p,t);p.lastContact=t;p.followUp='';p.waiting='';addLog(p,'Session held')}
     if(k==='convert'){p.origin='inquiry';p.type='client';p.waiting='';p.status='active';p.followUp='';addLog(p,'Became client');tab='client'}
-    save();closeSheet();toast(k==='convert'?'Moved to Clients':'Updated');
+    save();closeSheet();toastU(k==='convert'?'Moved to Clients':'Updated');
   });
   $('#sheet').querySelectorAll('[data-fu]').forEach(b=>b.onclick=()=>{const n=+b.dataset.fu;p.followUp=n?addDays(t,n):'';save();closeSheet();toast(n?'Follow up '+fmt(p.followUp):'Follow-up cleared')});
   $('#sheet').querySelectorAll('.wal').forEach(a=>a.onclick=()=>{save();const tid=a.dataset.tid;a.href=waLink(p,db.settings.templates.find(t=>t.id===tid))||a.href;setTimeout(()=>{logWA(id,tid);personSheet(id)},50)});
-  if($('#sa'))$('#sa').onclick=()=>{save();addSession(p,$('#ls').value||t);commit('Session added');personSheet(id)};
+  if($('#sa'))$('#sa').onclick=()=>{snap();save();addSession(p,$('#ls').value||t);commit();personSheet(id);toastU('Session added')};
+  const miss=k=>{const d0=$('#ls').value||t;snap();save();p.missed=p.missed||[];p.missed.push({d:d0,k});addLog(p,(k==='noshow'?'No-show ':'Cancelled ')+fmt(d0));commit();personSheet(id);toastU(k==='noshow'?'No-show logged':'Cancellation logged')};
+  if($('#mc')){$('#mc').onclick=()=>miss('cancel');$('#mn').onclick=()=>miss('noshow')}
+  $('#sheet').querySelectorAll('[data-md]').forEach(b=>b.onclick=()=>{const [d,k]=b.dataset.md.split('|');if(confirm('Remove this entry?')){snap();save();p.missed=(p.missed||[]).filter(m=>!(m.d===d&&m.k===k));commit();personSheet(id);toastU('Removed')}});
   $('#sheet').querySelectorAll('[data-sd]').forEach(b=>b.onclick=()=>{const d=b.dataset.sd;if(confirm('Remove session on '+fmt(d)+'?')){save();p.sessions=sess(p).filter(x=>x!==d);p.lastSession=p.sessions[p.sessions.length-1]||'';commit();personSheet(id)}});
   $('#la').onclick=()=>{const v=$('#lg').value.trim();if(!v)return;save();addLog(p,v);commit();personSheet(id)};
-  $('#del').onclick=()=>{if(confirm('Delete '+p.name+'? This cannot be undone.')){db.people=db.people.filter(x=>x.id!==id);queueSave();closeSheet();render()}};
+  $('#del').onclick=()=>{if(confirm('Delete '+p.name+'? This cannot be undone.')){snap();db.people=db.people.filter(x=>x.id!==id);queueSave();closeSheet();render();toastU('Deleted')}};
 }
 
 function settingsSheet(){
@@ -289,12 +306,13 @@ function markSel(){document.querySelectorAll('.row.sel').forEach(r=>r.classList.
 function moveSel(d){const rows=[...document.querySelectorAll('#main .row')];if(!rows.length)return;let i=rows.findIndex(r=>r.dataset.id===selId);i=i<0?(d>0?0:rows.length-1):Math.min(rows.length-1,Math.max(0,i+d));selId=rows[i].dataset.id;markSel();rows[i].scrollIntoView({block:'nearest'})}
 function go(t){if(tab!==t){tab=t;selId=null;render()}}
 function helpSheet(){
-  const R=[['N','New person'],['T  I  C  M','Today, Inquiries, Clients, Insights (or 1 to 4)'],['/','Search'],['J  K','Move down and up (or arrow keys)'],['Enter','Open selected person'],['W','WhatsApp selected person'],[',','Settings'],['?','This list'],['Esc','Close, saves edits'],['Ctrl or Cmd Enter','Save and close'],['D','In a person: contacted today'],['S','In a person: session done'],['W','In a person: WhatsApp']];
+  const R=[['N','New person'],['T  I  C  M','Today, Inquiries, Clients, Insights (or 1 to 4)'],['/','Search'],['J  K','Move down and up (or arrow keys)'],['Enter','Open selected person'],['W','WhatsApp selected person'],[',','Settings'],['Z','Snooze selected person 1 day'],['U','Undo last action (or Ctrl or Cmd Z)'],['?','This list'],['Esc','Close, saves edits'],['Ctrl or Cmd Enter','Save and close'],['D','In a person: contacted today'],['S','In a person: session done'],['W','In a person: WhatsApp']];
   openSheet(`<div class="sh-h"><span style="width:44px"></span><h3>Shortcuts</h3><button class="txt" id="x">Done</button></div><div class="list" style="margin-top:12px">${R.map(([k,t])=>`<div class="kr"><kbd>${k}</kbd><span>${t}</span></div>`).join('')}</div>`);
   $('#x').onclick=closeSheet;
 }
 document.addEventListener('keydown',e=>{
   const s=$('#sheet');
+  if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='z'&&!typing(e)){e.preventDefault();undoNow();return}
   if(e.key==='Escape'){if(sheetOn()){e.preventDefault();onDismiss()}else if(document.activeElement&&document.activeElement.id==='q')document.activeElement.blur();return}
   if((e.ctrlKey||e.metaKey)&&e.key==='Enter'&&sheetOn()){const b=s.querySelector('#save')||s.querySelector('#ok')||s.querySelector('#x');if(b){e.preventDefault();b.click()}return}
   if(e.key==='Enter'&&sheetOn()&&['n','c','w'].includes(e.target.id)&&s.querySelector('#save')){e.preventDefault();s.querySelector('#save').click();return}
@@ -315,6 +333,8 @@ document.addEventListener('keydown',e=>{
   else if(k==='j'||k==='arrowdown'){e.preventDefault();moveSel(1)}
   else if(k==='k'||k==='arrowup'){e.preventDefault();moveSel(-1)}
   else if(k==='enter'){if(selId&&e.target===document.body)personSheet(selId)}
+  else if(k==='z'){const r=document.querySelector('#main .row.sel');if(r){e.preventDefault();snooze(r.dataset.id,1)}}
+  else if(k==='u'){e.preventDefault();undoNow()}
   else if(k==='w'){const a=document.querySelector('#main .row.sel .wa');if(a){e.preventDefault();a.click()}}
   else if(k===','){e.preventDefault();settingsSheet()}
   else if(k==='?'){e.preventDefault();helpSheet()}
@@ -322,7 +342,7 @@ document.addEventListener('keydown',e=>{
 
 /* ---------- events ---------- */
 $('#seg').onclick=e=>{const b=e.target.closest('button');if(b){tab=b.dataset.t;render()}};
-$('#main').onclick=e=>{const w=e.target.closest('.wa');if(w){const id=w.dataset.wa,tid=w.dataset.tid;setTimeout(()=>logWA(id,tid),50);return}const r=e.target.closest('.row'),s=e.target.closest('[data-go]');if(r)personSheet(r.dataset.id);else if(s){tab=s.dataset.go;render()}};
+$('#main').onclick=e=>{const z=e.target.closest('.sn');if(z){snooze(z.dataset.sn,1);return}const w=e.target.closest('.wa');if(w){const id=w.dataset.wa,tid=w.dataset.tid;setTimeout(()=>logWA(id,tid),50);return}const r=e.target.closest('.row'),s=e.target.closest('[data-go]');if(r)personSheet(r.dataset.id);else if(s){tab=s.dataset.go;render()}};
 $('#main').onkeydown=e=>{if(e.key==='Enter'&&e.target.classList.contains('row'))personSheet(e.target.dataset.id)};
 $('#fab').onclick=addSheet;
 $('#scrim').onclick=()=>onDismiss();
@@ -331,3 +351,4 @@ document.addEventListener('visibilitychange',async()=>{if(!document.hidden&&cfg.
 addEventListener('beforeunload',e=>{if(dirty&&cfg.token){e.preventDefault();e.returnValue=''}});
 
 (async()=>{await pull();render();if(!cfg.token&&!db.people.length)setTimeout(()=>toast('Tap Local to connect your private repo'),600)})();
+if('serviceWorker' in navigator)addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}));

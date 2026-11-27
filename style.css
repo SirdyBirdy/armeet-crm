@@ -85,3 +85,9 @@ kbd{flex:none;min-width:96px;font:600 12px ui-monospace,SFMono-Regular,Menlo,mon
 .lock{position:fixed;inset:0;background:#000;z-index:50;display:grid;place-items:center;padding:24px}
 .lock>div{width:100%;max-width:320px;display:grid;gap:12px;text-align:center}
 .lock h3{margin:0;font-size:24px}
+
+.sn{background:var(--s2);border:0;color:var(--t2);font:inherit;font-size:12px;padding:5px 9px;border-radius:99px;cursor:pointer;flex:none}
+.toast.act{pointer-events:auto}
+.toast .txt{padding:0 0 0 8px;font-weight:600}
+.chip.miss{color:var(--or)}
+@media (max-width:420px){.row .pill{display:none}}

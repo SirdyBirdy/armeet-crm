@@ -11,6 +11,7 @@ The app (HTML, CSS, JS) holds no client data. Data lives in a separate private G
 | `index.html` | Page structure |
 | `style.css` | All styling |
 | `app.js` | Logic, rendering, GitHub sync |
+| `sw.js`, `manifest.webmanifest`, `icon-*.png` | Make the app installable and available offline |
 | `data.example.json` | Shape of the data file. Reference only, do not deploy with real data |
 
 ## Setup
@@ -33,7 +34,7 @@ Do not put the app files in this repo.
 ### 3. Host the app
 
 1. Create a second repo, e.g. `desk`. It can be public because it holds no client data.
-2. Upload `index.html`, `style.css`, `app.js`.
+2. Upload `index.html`, `style.css`, `app.js`, `sw.js`, `manifest.webmanifest`, `icon-192.png`, `icon-512.png`.
 3. **Settings > Pages**: deploy from the `main` branch, root folder.
 4. Open `https://<username>.github.io/desk/`.
 
@@ -65,6 +66,23 @@ Repeat step 4 on each device. The token is stored in that browser only.
   - Client: no session for the set number of days
 
 Thresholds are in **Settings**.
+
+## Install as an app
+
+Open the site over https, then:
+
+- **iPhone**: Safari > Share > Add to Home Screen.
+- **Android**: Chrome > menu > Install app.
+- **Desktop Chrome or Edge**: install icon in the address bar.
+
+It opens full screen. Cached data is available offline, and changes sync when you are back online. After updating the files, close and reopen the app to load the new version.
+
+## Calls, snooze, missed sessions, undo
+
+- **Discovery call**: set a date and time on an inquiry. It appears under **Calls** on Today for the next 7 days, moves the status to Call booked, and has an Add to calendar link. If the call date passes while the status is still Call booked, the person is flagged to log the outcome.
+- **Snooze**: the `+1d` button on a flagged row, or `Z` on the selected row, moves the follow-up to tomorrow.
+- **Cancelled and No-show**: in a client's sheet, pick the date and tap the button. Entries show as chips and can be removed. Insights shows a monthly chart and the share of booked sessions missed in the last 90 days.
+- **Undo**: after Session done, Contacted, Became client, Snooze, Delete, adding a session or logging a miss, tap Undo in the toast within 6 seconds. `U` or `Ctrl`/`Cmd` + `Z` undoes the last action until the next one.
 
 ## Insights
 
@@ -101,6 +119,8 @@ Press `?` in the app to see this list.
 | `J` `K` or arrow keys | Move selection down and up |
 | `Enter` | Open selected person |
 | `W` | WhatsApp the selected person |
+| `Z` | Snooze the selected person 1 day |
+| `U` or `Ctrl`/`Cmd` + `Z` | Undo the last action |
 | `,` | Settings |
 | `Esc` | Close the open sheet. Edits to a person are saved |
 | `Ctrl` or `Cmd` + `Enter` | Save and close |
